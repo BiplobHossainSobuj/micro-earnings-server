@@ -39,6 +39,7 @@ async function run() {
 
     //collections
     const userCollection = client.db("micro-service").collection('users');
+    const taskCollection = client.db("micro-service").collection('tasks');
 
     //token verify
     const verifyToken = (req, res, next) => {
@@ -162,6 +163,42 @@ async function run() {
       res.send({ worker });
     })
 
+    //task creator relted api
+
+      //add new task
+    app.get('/tasks/:email',verifyToken, async(req,res)=>{
+      const email = req.params.email;
+      const query = {creatorEmail:email};
+      const result = await taskCollection.find(query).toArray();
+      res.send(result);
+    })
+    app.post('/tasks',verifyToken, async(req,res)=>{
+      const taskInfo = req.body;
+      const result = await taskCollection.insertOne(taskInfo);
+      res.send(result);
+    })
+    //delete task
+    app.delete('/tasks/:id',verifyToken, async(req,res)=>{
+      const id = req.params.id;
+      const query = {_id:new ObjectId(id)};
+      const result = await taskCollection.deleteOne(query);
+      res.send(result);
+    })
+    //update task
+    app.patch('/tasks/:id',verifyToken, async(req,res)=>{
+      const updateInfo = req.body;
+      const id = req.params.id;
+      const query = {_id:new ObjectId(id)};
+      const updatedDoc = {
+        $set:{
+          taskTitle:updateInfo.taskTitle,
+          taskDetails:updateInfo.taskDetails,
+        }
+      }
+      const result = await taskCollection.updateOne(query,updatedDoc);
+      // console.log(result);
+      res.send(result);
+    })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
