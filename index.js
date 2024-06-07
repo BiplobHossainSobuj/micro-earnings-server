@@ -32,14 +32,48 @@ const client = new MongoClient(uri, {
   }
 });
 
+//collections
+const userCollection = client.db("micro-service").collection('users');
+const taskCollection = client.db("micro-service").collection('tasks');
+const submissionCollection = client.db("micro-service").collection('submissions');
+//verify admin
+const verifyAdmin = async (req, res, next) => {
+  const email = req.decoded.email;
+  const user = await userCollection.findOne({ email: email });
+  const isAdmin = user?.role === 'admin';
+  if (!isAdmin) {
+    return res.status(403).send({ massage: 'forbidden access' });
+  }
+  next();
+}
+//verify taskCreator
+const verifyTaskCreator = async (req, res, next) => {
+  const email = req.decoded.email;
+  const user = await userCollection.findOne({ email: email });
+  const isTaskCreator = user?.role === 'taskCreator';
+  if (!isTaskCreator) {
+    return res.status(403).send({ massage: 'forbidden access' });
+  }
+  next();
+}
+//verify worker
+const verifyWorker = async (req, res, next) => {
+  const email = req.decoded.email;
+  const user = await userCollection.findOne({ email: email });
+  const isWorker = user?.role === 'worker';
+  if (!isWorker) {
+    return res.status(403).send({ massage: 'forbidden access' });
+  }
+  next();
+}
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
     // await client.connect();
 
     //collections
-    const userCollection = client.db("micro-service").collection('users');
-    const taskCollection = client.db("micro-service").collection('tasks');
+    // const userCollection = client.db("micro-service").collection('users');
+    // const taskCollection = client.db("micro-service").collection('tasks');
 
     //token verify
     const verifyToken = (req, res, next) => {
@@ -56,16 +90,7 @@ async function run() {
         next();
       })
     }
-    //verify admin
-    const verifyAdmin = async (req, res, next) => {
-      const email = req.decoded.email;
-      const user = await userCollection.findOne({ email: email });
-      const isAdmin = user?.role === 'admin';
-      if (!isAdmin) {
-        return res.status(403).send({ massage: 'forbidden access' });
-      }
-      next();
-    }
+
 
     // jwt token 
     app.post('/jwt', async (req, res) => {
@@ -88,12 +113,12 @@ async function run() {
       res.send(result);
     })
     app.get('/users', async (req, res) => {
-      const filter = {role:'worker'};
+      const filter = { role: 'worker' };
       const result = await userCollection.find(filter).toArray();
       res.send(result);
     })
     //user delete
-    app.delete('/users/:id', verifyToken, async (req, res) => {
+    app.delete('/users/:id', verifyToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await userCollection.deleteOne(query);
@@ -101,7 +126,7 @@ async function run() {
 
     })
     // update user role 
-    app.patch('/users/role/:id', async (req, res) => {
+    app.patch('/users/role/:id', verifyToken, verifyAdmin, async (req, res) => {
       const role = req.body.userRole;
       // console.log(role);
       const id = req.params.id;
@@ -165,38 +190,79 @@ async function run() {
 
     //task creator relted api
 
-      //add new task
-    app.get('/tasks/:email',verifyToken, async(req,res)=>{
+    //add new task
+    app.get('/tasks/:email', verifyToken, verifyTaskCreator, async (req, res) => {
       const email = req.params.email;
-      const query = {creatorEmail:email};
+      const query = { creatorEmail: email };
       const result = await taskCollection.find(query).toArray();
       res.send(result);
     })
-    app.post('/tasks',verifyToken, async(req,res)=>{
+    //get task api for worker
+    app.get('/tasks', verifyToken, verifyWorker, async (req, res) => {
+      const result = await taskCollection.find().toArray();
+      res.send(result);
+    })
+    //get task details api for worker
+    app.get('/tasks/:id', verifyToken, verifyWorker, async (req, res) => {
+      const id = req.params.id;
+      const query = {_id:new ObjectId(id)};
+      const result = await taskCollection.findOne(query);
+      res.send(result);
+    })
+    //worker task submission api 
+    app.post('/submissions',verifyToken,verifyWorker,async(req,res)=>{
+      const taskSubmissionInfo = req.body;
+      const result = await submissionCollection.insertOne(taskSubmissionInfo);
+      res.send(result);
+    })
+    app.get('/submissions/:email',verifyToken,verifyWorker,async(req,res)=>{
+      const email = req.params.email;
+      const query = {workerEmail:email};
+      const result = await submissionCollection.find(query).toArray();
+      res.send(result);
+    })
+
+    //creator added new task 
+    app.post('/tasks', verifyToken, verifyTaskCreator, async (req, res) => {
       const taskInfo = req.body;
       const result = await taskCollection.insertOne(taskInfo);
       res.send(result);
     })
     //delete task
-    app.delete('/tasks/:id',verifyToken, async(req,res)=>{
+    app.delete('/tasks/:id', verifyToken, verifyTaskCreator, async (req, res) => {
       const id = req.params.id;
-      const query = {_id:new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const result = await taskCollection.deleteOne(query);
       res.send(result);
     })
     //update task
-    app.patch('/tasks/:id',verifyToken, async(req,res)=>{
+    app.patch('/tasks/:id', verifyToken, verifyTaskCreator, async (req, res) => {
       const updateInfo = req.body;
       const id = req.params.id;
-      const query = {_id:new ObjectId(id)};
+      const query = { _id: new ObjectId(id) };
       const updatedDoc = {
-        $set:{
-          taskTitle:updateInfo.taskTitle,
-          taskDetails:updateInfo.taskDetails,
+        $set: {
+          taskTitle: updateInfo.taskTitle,
+          taskDetails: updateInfo.taskDetails,
+          submissionInfo: updateInfo.submissionDetails,
         }
       }
-      const result = await taskCollection.updateOne(query,updatedDoc);
+      const result = await taskCollection.updateOne(query, updatedDoc);
       // console.log(result);
+      res.send(result);
+    })
+    //task creator review submitted task
+    app.get('/submissions/taskCreator/:email',verifyToken,verifyTaskCreator,async(req,res)=>{
+      const email = req.params.email;
+      const query = {creatorEmail:email};
+      const result = await submissionCollection.find(query).toArray();
+      res.send(result);
+    })
+    //task creator view submission details of specific task
+    app.get('/submissions/details/:id',verifyToken,verifyTaskCreator,async(req,res)=>{
+      const id = req.params.id;
+      const query = {_id:new ObjectId(id)};
+      const result = await submissionCollection.find(query).toArray();
       res.send(result);
     })
     // Send a ping to confirm a successful connection
