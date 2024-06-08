@@ -5,7 +5,7 @@ const app = express();
 const port = process.env.port || 5000;
 dotenv.config();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
-// const stripe = require('stripe')(process.env.STRIPE_SECRETE);
+const stripe = require('stripe')(process.env.STRIPE_SECRETE);
 const jwt = require('jsonwebtoken');
 
 // middleware 
@@ -36,6 +36,8 @@ const client = new MongoClient(uri, {
 const userCollection = client.db("micro-service").collection('users');
 const taskCollection = client.db("micro-service").collection('tasks');
 const submissionCollection = client.db("micro-service").collection('submissions');
+const paymentCollection = client.db("micro-service").collection('payments');
+const withdrawCollection = client.db("micro-service").collection('withdraws');
 //verify admin
 const verifyAdmin = async (req, res, next) => {
   const email = req.decoded.email;
@@ -265,6 +267,53 @@ async function run() {
       const result = await submissionCollection.find(query).toArray();
       res.send(result);
     })
+    //approved submission task api
+    app.patch('/submissions/approve/:id',verifyToken,verifyTaskCreator,async(req,res)=>{
+      const id = req.params.id;
+      const query = {_id:new ObjectId(id)};
+      const updatedDoc = {
+        $set:{status:'approved'}
+      }
+      const result = await submissionCollection.updateOne(query,updatedDoc);
+      res.send(result);
+    })
+    //reject submission task api
+    app.patch('/submissions/reject/:id',verifyToken,verifyTaskCreator,async(req,res)=>{
+      const id = req.params.id;
+      const query = {_id:new ObjectId(id)};
+      const updatedDoc = {
+        $set:{status:'rejected'}
+      }
+      const result = await submissionCollection.updateOne(query,updatedDoc);
+      res.send(result);
+    })
+
+    // payments 
+    //payment intent
+    app.post('/create-payment-intent', async (req, res) => {
+      const { amount } = req.body;
+      const cost = parseInt(amount * 100);
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: cost,
+        currency: 'usd',
+        payment_method_types: ['card'],
+      });
+      res.send({
+        clientSecret: paymentIntent.client_secret
+      })
+    })
+    app.post('/payments', async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+      res.send({paymentResult});
+    })
+    //withdraws 
+    app.post('/withdraws', async (req, res) => {
+      const withdraw = req.body;
+      const withdrawResult = await withdrawCollection.insertOne(withdraw);
+      res.send({withdrawResult});
+    })
+
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
