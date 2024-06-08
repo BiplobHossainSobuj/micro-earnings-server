@@ -125,8 +125,9 @@ async function run() {
       const query = { _id: new ObjectId(id) };
       const result = await userCollection.deleteOne(query);
       res.send(result);
-
     })
+   
+    
     // update user role 
     app.patch('/users/role/:id', verifyToken, verifyAdmin, async (req, res) => {
       const role = req.body.userRole;
@@ -313,7 +314,30 @@ async function run() {
       const withdrawResult = await withdrawCollection.insertOne(withdraw);
       res.send({withdrawResult});
     })
-
+    app.get('/withdraws',verifyToken,verifyAdmin, async (req, res) => {
+      const withdrawResult = await withdrawCollection.find().toArray();
+      res.send(withdrawResult);
+    })
+    //delete withdraw after succesfull request
+    app.delete('/withdraws/:id',verifyToken,verifyAdmin, async (req, res) => {
+      const id= req.params.id;
+      const filter = {_id:new ObjectId(id)};
+      const withdrawResult = await withdrawCollection.deleteOne(filter);
+      res.send(withdrawResult);
+    })
+    app.patch('/users/:email',async(req,res)=>{
+      const email = req.params.email;
+      const query ={email:email};
+      const user = await userCollection.findOne(query);
+      const coinToBeDeducted = req.body.deductedCoin;
+      const updatedDoc={
+        $set:{
+          coin:parseFloat(user.coin)-parseFloat(coinToBeDeducted)
+        }
+      }
+      const result = await userCollection.updateOne(query,updatedDoc);
+      res.send(result);
+    })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
