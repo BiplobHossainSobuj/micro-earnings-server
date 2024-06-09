@@ -114,9 +114,15 @@ async function run() {
       const result = await userCollection.insertOne(user);
       res.send(result);
     })
-    app.get('/users', async (req, res) => {
+    app.get('/users',verifyToken, async (req, res) => {
       const filter = { role: 'worker' };
       const result = await userCollection.find(filter).toArray();
+      res.send(result);
+    })
+    app.get('/users/:email',verifyToken, async (req, res) => {
+      const email = req.params.email;
+      const filter = { email: email };
+      const result = await userCollection.findOne(filter);
       res.send(result);
     })
     //user delete
@@ -303,13 +309,20 @@ async function run() {
         clientSecret: paymentIntent.client_secret
       })
     })
-    app.post('/payments', async (req, res) => {
+    app.post('/payments',verifyToken,verifyTaskCreator, async (req, res) => {
       const payment = req.body;
       const paymentResult = await paymentCollection.insertOne(payment);
       res.send({paymentResult});
     })
+    //payment history for task creator
+    app.get('/payments/:email',verifyToken,verifyTaskCreator, async (req, res) => {
+      const email = req.params.email;
+      const query = {email:email};
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
+    })
     //withdraws 
-    app.post('/withdraws', async (req, res) => {
+    app.post('/withdraws',verifyToken,verifyWorker, async (req, res) => {
       const withdraw = req.body;
       const withdrawResult = await withdrawCollection.insertOne(withdraw);
       res.send({withdrawResult});
@@ -325,7 +338,7 @@ async function run() {
       const withdrawResult = await withdrawCollection.deleteOne(filter);
       res.send(withdrawResult);
     })
-    app.patch('/users/:email',async(req,res)=>{
+    app.patch('/users/:email',verifyToken,async(req,res)=>{
       const email = req.params.email;
       const query ={email:email};
       const user = await userCollection.findOne(query);
@@ -333,6 +346,34 @@ async function run() {
       const updatedDoc={
         $set:{
           coin:parseFloat(user.coin)-parseFloat(coinToBeDeducted)
+        }
+      }
+      const result = await userCollection.updateOne(query,updatedDoc);
+      res.send(result);
+    })
+    //update taskCreator Coin
+    app.patch('/users/taskCreator/:email',verifyToken,async(req,res)=>{
+      const email = req.params.email;
+      const query ={email:email};
+      const user = await userCollection.findOne(query);
+      const coinToBeIncreased = req.body.coins;
+      const updatedDoc={
+        $set:{
+          coin:parseFloat(user.coin)+ parseFloat(coinToBeIncreased)
+        }
+      }
+      const result = await userCollection.updateOne(query,updatedDoc);
+      res.send(result);
+    })
+    //update worker Coin after approval by task craetor
+    app.patch('/users/worker/:email',verifyToken,async(req,res)=>{
+      const email = req.params.email;
+      const query ={email:email};
+      const user = await userCollection.findOne(query);
+      const coinToBeIncreased = req.body.coins;
+      const updatedDoc={
+        $set:{
+          coin:parseFloat(user.coin)+ parseFloat(coinToBeIncreased)
         }
       }
       const result = await userCollection.updateOne(query,updatedDoc);
