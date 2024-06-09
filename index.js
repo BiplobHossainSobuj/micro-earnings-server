@@ -338,6 +338,7 @@ async function run() {
       const withdrawResult = await withdrawCollection.deleteOne(filter);
       res.send(withdrawResult);
     })
+    //update coin after withdraw
     app.patch('/users/:email',verifyToken,async(req,res)=>{
       const email = req.params.email;
       const query ={email:email};
@@ -351,7 +352,7 @@ async function run() {
       const result = await userCollection.updateOne(query,updatedDoc);
       res.send(result);
     })
-    //update taskCreator Coin
+    //update taskCreator Coin after succesfull payment
     app.patch('/users/taskCreator/:email',verifyToken,async(req,res)=>{
       const email = req.params.email;
       const query ={email:email};
@@ -360,6 +361,20 @@ async function run() {
       const updatedDoc={
         $set:{
           coin:parseFloat(user.coin)+ parseFloat(coinToBeIncreased)
+        }
+      }
+      const result = await userCollection.updateOne(query,updatedDoc);
+      res.send(result);
+    })
+    //update coin after addnewTask or delete task
+    app.patch('/users/coins/:email',verifyToken,async(req,res)=>{
+      const email = req.params.email;
+      const query ={email:email};
+      // const user = await userCollection.findOne(query);
+      const coin = req.body.newCoins;
+      const updatedDoc={
+        $set:{
+          coin:coin
         }
       }
       const result = await userCollection.updateOne(query,updatedDoc);
@@ -378,6 +393,40 @@ async function run() {
       }
       const result = await userCollection.updateOne(query,updatedDoc);
       res.send(result);
+    })
+    //worker stats 
+    app.get('/workerStats/:email',async(req,res)=>{
+      const email = req.params.email;
+      const query = {email:email};
+      const option = {
+        projection:{coin:1}
+      }
+      const coin = await userCollection.findOne(query,option);
+      const submissions= await submissionCollection.estimatedDocumentCount({workerEmail:email});
+      const earnings = await submissionCollection.find({workerEmail:email,status:'approved'}).toArray();
+      res.send({
+        coin,
+        submissions,
+        earnings
+      })
+
+    })
+    //taskcreator stats 
+    app.get('/taskCreatorStats/:email',async(req,res)=>{
+      const email = req.params.email;
+      const query = {email:email};
+      const option = {
+        projection:{coin:1}
+      }
+      const coin = await userCollection.findOne(query,option);
+      const amount= await paymentCollection.find({email:email,},{projection:{amount:1}}).toArray();
+      const pendingTask = await submissionCollection.estimatedDocumentCount({creatorEmail:email},);
+      res.send({
+        coin,
+        amount,
+        pendingTask
+      })
+
     })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
