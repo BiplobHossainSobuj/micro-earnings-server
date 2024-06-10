@@ -15,6 +15,7 @@ app.use(
       "http://localhost:5173",
       "https://micro-earnings.web.app",
       "https://micro-earnings.firebaseapp.com",
+      "https://micro-earnings-server.vercel.app"
     ],
     credentials: true,
   })
@@ -496,12 +497,12 @@ async function run() {
       res.send(result);
     })
     //notification
-    app.post('/notifications', async(req,res)=>{
+    app.post('/notifications',verifyToken, async(req,res)=>{
       const notification = req.body;
       const notifications = await notificationCollection.insertOne(notification)
       res.send(notifications)
     })
-    app.get('/notifications/:email', async (req,res)=>{
+    app.get('/notifications/:email',verifyToken, async (req,res)=>{
       const email = req.params.email;
       const query = {toMail:email};
       const sort = {massage:-1};
