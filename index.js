@@ -47,6 +47,7 @@ const taskCollection = client.db("micro-service").collection('tasks');
 const submissionCollection = client.db("micro-service").collection('submissions');
 const paymentCollection = client.db("micro-service").collection('payments');
 const withdrawCollection = client.db("micro-service").collection('withdraws');
+const notificationCollection = client.db("micro-service").collection('notifications');
 //verify admin
 const verifyAdmin = async (req, res, next) => {
   const email = req.decoded.email;
@@ -492,6 +493,19 @@ async function run() {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await taskCollection.deleteOne(query);
+      res.send(result);
+    })
+    //notification
+    app.post('/notifications', verifyToken,verifyTaskCreator,async(req,res)=>{
+      const notification = req.body;
+      const notifications = await notificationCollection.insertOne(notification)
+      res.send(notifications)
+    })
+    app.get('/notifications/:email',verifyToken,verifyWorker, async (req,res)=>{
+      const email = req.params.email;
+      const query = {toMail:email};
+      const sort = {massage:-1};
+      const result = await notificationCollection.find(query).sort(sort).toArray();
       res.send(result);
     })
     // Send a ping to confirm a successful connection
