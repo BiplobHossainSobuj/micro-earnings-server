@@ -9,7 +9,16 @@ const stripe = require('stripe')(process.env.STRIPE_SECRETE);
 const jwt = require('jsonwebtoken');
 
 // middleware 
-app.use(cors())
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://micro-earnings.web.app",
+      "https://micro-earnings.firebaseapp.com",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -403,11 +412,13 @@ async function run() {
       }
       const coin = await userCollection.findOne(query,option);
       const submissions= await submissionCollection.estimatedDocumentCount({workerEmail:email});
-      const earnings = await submissionCollection.find({workerEmail:email,status:'approved'}).toArray();
+      const earnings = await submissionCollection.find({workerEmail:email}).toArray();
+      const approved = earnings.filter(task=>task.status==='approved');
+      const totalEaning = approved.reduce((accumulator, currentItem) => accumulator + parseFloat(currentItem.payableAmount), 0);
       res.send({
         coin,
         submissions,
-        earnings
+        totalEaning
       })
 
     })
@@ -419,12 +430,46 @@ async function run() {
         projection:{coin:1}
       }
       const coin = await userCollection.findOne(query,option);
-      const amount= await paymentCollection.find({email:email,},{projection:{amount:1}}).toArray();
-      const pendingTask = await submissionCollection.estimatedDocumentCount({creatorEmail:email},);
+      const pay = await paymentCollection.find(query,{projection:{amount:1}}).toArray();
+      const totalPayment = pay.reduce((accumulator, currentItem) => accumulator + parseFloat(currentItem.amount), 0);
+      const pendingTask = await submissionCollection.find({creatorEmail:email}).toArray();
+      const totalPending = pendingTask.filter(task=>task.status==='pending');
+      const allPendings = totalPending.length;
       res.send({
         coin,
-        amount,
-        pendingTask
+        totalPayment,
+        allPendings
+      })
+    })
+    //admin stats 
+    app.get('/adminStats',async(req,res)=>{
+      const users = await userCollection.estimatedDocumentCount();
+      const coins= await userCollection.aggregate([
+        {
+          $group:{
+            _id:null,
+            totalCoins:{
+              $sum:'$coin'
+            }
+          }
+        }
+      ]).toArray();
+      const total = coins.length >0?coins[0].totalCoins:0;
+      const payment = await paymentCollection.aggregate([
+        {
+          $group:{
+            _id:null,
+            totalPay:{
+              $sum:'$amount'
+            }
+          }
+        }
+      ]).toArray();
+      const pay = payment.length >0?payment[0].totalPay:0;
+      res.send({
+        users,
+        total,
+        pay
       })
 
     })
