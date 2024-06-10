@@ -404,7 +404,7 @@ async function run() {
       res.send(result);
     })
     //worker stats 
-    app.get('/workerStats/:email',async(req,res)=>{
+    app.get('/workerStats/:email',verifyToken,verifyWorker, async(req,res)=>{
       const email = req.params.email;
       const query = {email:email};
       const option = {
@@ -423,7 +423,7 @@ async function run() {
 
     })
     //taskcreator stats 
-    app.get('/taskCreatorStats/:email',async(req,res)=>{
+    app.get('/taskCreatorStats/:email',verifyToken,verifyTaskCreator, async(req,res)=>{
       const email = req.params.email;
       const query = {email:email};
       const option = {
@@ -442,7 +442,7 @@ async function run() {
       })
     })
     //admin stats 
-    app.get('/adminStats',async(req,res)=>{
+    app.get('/adminStats',verifyToken,verifyAdmin, async(req,res)=>{
       const users = await userCollection.estimatedDocumentCount();
       const coins= await userCollection.aggregate([
         {
@@ -472,6 +472,27 @@ async function run() {
         pay
       })
 
+    })
+    //top earners
+    app.get('/topEarners',async(req,res)=>{
+      const user = await userCollection.aggregate([
+        {$sort:{coin:-1}},
+        {$limit:6}
+      ]).toArray();
+      res.send(user);
+    })
+    //get task as admin
+    app.get('/admin/tasks', verifyToken,verifyAdmin, async (req, res) => {
+      const result = await taskCollection.find().toArray();
+      res.send(result);
+    })
+    
+    //delete task as admin
+    app.delete('/admin/tasks/:id', verifyToken,verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await taskCollection.deleteOne(query);
+      res.send(result);
     })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
